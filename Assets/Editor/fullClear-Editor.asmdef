@@ -1,0 +1,10 @@
+{
+  "name": "fullClear-Editor",
+  "references": [
+    "fullClear"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": []
+}
