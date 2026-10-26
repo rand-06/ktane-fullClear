@@ -1,11 +1,9 @@
-﻿using System;
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using UnityEngine;
 using CustomExtensions;
-using KeepCoding;
 
 public class PC4WScript : MonoBehaviour
 {
@@ -28,19 +26,19 @@ public class PC4WScript : MonoBehaviour
     private readonly List<List<Vector2Int>> 
     regularRotTable = new List<List<Vector2Int>> {
         new List<Vector2Int>{new Vector2Int( 0, 0),	new Vector2Int( 0, 0),	new Vector2Int( 0, 0),	new Vector2Int( 0, 0),	new Vector2Int( 0, 0)},
-        new List<Vector2Int>{new Vector2Int( 0, 0),	new Vector2Int(+1, 0),	new Vector2Int(+1,-1),	new Vector2Int( 0,+2),	new Vector2Int(+1,+2)},
+        new List<Vector2Int>{new Vector2Int( 0, 0),	new Vector2Int(+1, 0),	new Vector2Int(+1,+1),	new Vector2Int( 0,-2),	new Vector2Int(+1,-2)},
         new List<Vector2Int>{new Vector2Int( 0, 0),	new Vector2Int( 0, 0),	new Vector2Int( 0, 0),	new Vector2Int( 0, 0),	new Vector2Int( 0, 0)},
-        new List<Vector2Int>{new Vector2Int( 0, 0),	new Vector2Int(-1, 0),	new Vector2Int(-1,-1),	new Vector2Int( 0,+2),	new Vector2Int(-1,+2)}
+        new List<Vector2Int>{new Vector2Int( 0, 0),	new Vector2Int(-1, 0),	new Vector2Int(-1,+1),	new Vector2Int( 0,-2),	new Vector2Int(-1,-2)}
     }, IRotTable = new List<List<Vector2Int>>{
         new List<Vector2Int>{new Vector2Int( 0, 0),	new Vector2Int(-1, 0),	new Vector2Int(+2, 0),	new Vector2Int(-1, 0),	new Vector2Int(+2, 0)},
-        new List<Vector2Int>{new Vector2Int(-1, 0),	new Vector2Int( 0, 0),	new Vector2Int( 0, 0),	new Vector2Int( 0,+1),	new Vector2Int( 0,-2)},
-        new List<Vector2Int>{new Vector2Int(-1,+1),	new Vector2Int(+1,+1),	new Vector2Int(-2,+1),	new Vector2Int(+1, 0),	new Vector2Int(-2, 0)},
-        new List<Vector2Int>{new Vector2Int( 0,+1),	new Vector2Int( 0,+1),	new Vector2Int( 0,+1),	new Vector2Int( 0,-1),	new Vector2Int( 0,+2)}
-    }, ORotTable = new List<List<Vector2Int>> {
-        new List<Vector2Int>{new Vector2Int( 0, 0)},
-        new List<Vector2Int>{new Vector2Int( 0,-1)},
-        new List<Vector2Int>{new Vector2Int(-1,-1)},
-        new List<Vector2Int>{new Vector2Int(-1, 0)}
+        new List<Vector2Int>{new Vector2Int(-1, 0),	new Vector2Int( 0, 0),	new Vector2Int( 0, 0),	new Vector2Int( 0,-1),	new Vector2Int( 0,+2)},
+        new List<Vector2Int>{new Vector2Int(-1,-1),	new Vector2Int(+1,-1),	new Vector2Int(-2,-1),	new Vector2Int(+1, 0),	new Vector2Int(-2, 0)},
+        new List<Vector2Int>{new Vector2Int( 0,-1),	new Vector2Int( 0,-1),	new Vector2Int( 0,-1),	new Vector2Int( 0,+1),	new Vector2Int( 0,-2)}
+    };
+
+    private List<string> overhangs = new List<string>
+    {
+        "000     ", " 000    ", "00  0   ", "  00   0","0   00  ","   0  00"
     };
         
 
@@ -70,7 +68,8 @@ public class PC4WScript : MonoBehaviour
         { 'j', new Color(0x21 / 255f * 0.5f, 0x41 / 255f * 0.5f, 0xc6 / 255f * 0.5f) },
         { 't', new Color(0xaf / 255f * 0.5f, 0x29 / 255f * 0.5f, 0x8a / 255f * 0.5f) },
         
-        { ' ', new Color(0, 0, 0) }
+        { '0', Color.gray},
+        { ' ', Color.black }
     };
     private bool held;
     public KMAudio Audio;
@@ -89,6 +88,15 @@ public class PC4WScript : MonoBehaviour
     private Coroutine moveCorout, gravCorout;
     private bool selected;
 
+    public MeshRenderer cupRenderer;
+    public KMSelectable cupButton;
+    private Color zenMode = new Color(0.2f, 0.2f, 0.4f);
+    private bool ModuleSolved = false;
+    public TextMesh centerText;
+    private bool spawnZen = false;
+    private bool activeZen = false;
+    private int maxCombo = 0;
+
     void Start()
     {
         GetComponent<KMSelectable>().OnFocus += delegate { selected = true; };
@@ -99,7 +107,14 @@ public class PC4WScript : MonoBehaviour
             newSquare.transform.localPosition += new Vector3(0.01f * x, 0f, 0.01f * z);
             return newSquare;
         }).ToList()).ToList();
-        foreach (var row in grid) foreach (GameObject s in row) s.GetComponent<MeshRenderer>().material.color = Color.black;
+        cupButton.OnInteract+= delegate
+        {
+            if (!ModuleSolved) return false;
+            spawnZen = !spawnZen;
+            cupRenderer.material.color = spawnZen ? zenMode : Color.gray;
+            return false;
+        };
+        foreach (var s in grid.SelectMany(row => row)) s.GetComponent<MeshRenderer>().material.color = Color.black;
         generateQueueGrid();
         clearQueue();
         clearHold();
@@ -121,16 +136,11 @@ public class PC4WScript : MonoBehaviour
     
     void clearQueue()
     {
-        foreach (var t in queuePieces)
-            foreach (var t1 in t)
-            foreach (GameObject s in t1)
-                s.SetActive(false);
+        foreach (var s in queuePieces.SelectMany(t => t.SelectMany(t1 => t1))) s.SetActive(false);
     }
     void clearHold()
     {
-        foreach (var t in holdPiece)
-        foreach (GameObject s in t)
-            s.SetActive(false);
+        foreach (var s in holdPiece.SelectMany(t => t)) s.SetActive(false);
     }
     
     void generateQueueGrid()
@@ -162,7 +172,8 @@ public class PC4WScript : MonoBehaviour
             }).ToList()).ToList();
         holdSquare.SetActive(false);
     }
-    string generateQueue() => queue.Length == 0 ? "TZS".shuffle() + "JOLI".shuffle() : pieces.shuffle();
+    string generateQueue() => (queue.Length == 0 && !activeZen) ? "TZS".shuffle() + "JOLI".shuffle() : pieces.shuffle();
+    
 
     void spawn()
     {
@@ -175,7 +186,6 @@ public class PC4WScript : MonoBehaviour
             updateQueue();
             if (queue.Length < 25) queue += generateQueue();
             drawCup();
-
         }
         else
         {
@@ -240,7 +250,8 @@ public class PC4WScript : MonoBehaviour
 
     void Rotate(int rotation)
     {
-        var table = currentPiece == 'O' ? ORotTable : currentPiece == 'I' ? IRotTable : regularRotTable;
+        if (currentPiece == 'O') return;
+        var table = currentPiece == 'I' ? IRotTable : regularRotTable;
         for (int i = 0; i < table[0].Count; i++)
         {
             Vector2Int offset = table[(currentRotation+rotation)%4][i] - table[currentRotation][i];
@@ -257,7 +268,47 @@ public class PC4WScript : MonoBehaviour
         }
         
     }
-
+    /*
+    IEnumerator RotateIE(int rotation)
+    {
+        var table = currentPiece == 'O' ? ORotTable : currentPiece == 'I' ? IRotTable : regularRotTable;
+        for (int i = 0; i < table[0].Count; i++)
+        {
+            Vector2Int offset = table[(currentRotation+rotation)%4][i] - table[currentRotation][i];
+            if (!Input.GetKey(KeyCode.LeftControl) && checkIfFits(currentPiece, currentPosition + offset, currentRotation + rotation))
+            {
+                currentRotation = (currentRotation + rotation) % 4;
+                currentPosition += offset;
+                onGroundCurrent = 0f;
+                onGroundMove = 0f;
+                drawCup();
+                yield break;
+            }
+            else
+            {
+                drawCup();
+                //List<Vector2Int> list = new List<Vector2Int> { offset+currentPosition  };
+                List<Vector2Int> list = Enumerable.Range(0, 4).Select(x =>
+                    x == 0
+                        ? offset + currentPosition
+                        : shapeInfo[currentPiece][x - 1].rotate(rotation + currentRotation) +
+                          currentPosition + offset
+                ).ToList();
+                print("List: " + list.Select(x=> "(" + x.x + "," + x.y+")").Aggregate("",(a,b)=>a+","+b));
+                //foreach(var v in table[(currentRotation+rotation)%4]) list.Add(v.rotate(rotation+currentRotation)+currentPosition+offset);
+                foreach (var v in list)
+                {
+                    if (v.x >= 0 && v.x <= 3 && v.y >= 0)
+                        grid[v.y][v.x].GetComponent<MeshRenderer>().material.color = Color.gray;
+                }
+                yield return new WaitForSeconds(1f);
+                
+            }
+            print("Layer " + i + " failed to rotate.");
+        }
+        drawCup();
+    }
+    */
     void newGame()
     {
         gameIsGoing = false;
@@ -266,7 +317,16 @@ public class PC4WScript : MonoBehaviour
         cup = Enumerable.Range(0, 25).Select(_ => Enumerable.Range(0, 4).Select(__ => ' ').ToList()).ToList();
         queue = "";
         held = false;
+        activeZen = spawnZen;
         for (int _ = 0; _ < 4; _++) queue += generateQueue();
+        if (activeZen)
+        {
+            string currentOverhang = overhangs.PickRandom();
+            for (int i = 0; i < currentOverhang.Length; i++)
+            {
+                cup[i/4][i%4] = currentOverhang[i];
+            }
+        }
         holdingPiece = '0';
         currentPiece = '0';
         currentRotation = 0;
@@ -282,11 +342,13 @@ public class PC4WScript : MonoBehaviour
         fullClears = 0;
         linesCleared = 0;
         currentCombo = 0;
+        maxCombo = 0;
         comboText.text = "";
         piecesText.text = "0";
         velocityText.text = "(0.00/s)";
         fullClearsText.text = "0";
         linesText.text = "0";
+        centerText.text = activeZen?"Max Combo:":"Full Clears:";
         moveCorout = StartCoroutine(Move());
         gravCorout = StartCoroutine(gravity());
         
@@ -294,6 +356,7 @@ public class PC4WScript : MonoBehaviour
 
     void drop()
     {
+        if (!gameIsGoing) return;
         held = false;
         bool holdCombo = false;
         onGroundCurrent = 0f;
@@ -302,7 +365,9 @@ public class PC4WScript : MonoBehaviour
         cup = cup.addPiece(currentPiece, getGhost(currentPosition, currentRotation, currentPiece), currentRotation, shapeInfo[currentPiece]);
         piecesPlaced++;
         piecesText.text = piecesPlaced.ToString();
-        velocityText.text = "(" + (piecesPlaced / (totalTime + 0.001f)).ToString("F2") + "/s)";
+        if (!TwitchPlaysActive)
+            velocityText.text = "(" + (piecesPlaced / (totalTime + 0.001f)).ToString("F2") + "/s)";
+        else velocityText.text = "(?.??/s)";
         for (int i = 20; i < 25; i++)
         {
             for(int j=0;j<4;j++) cup[i][j] = ' ';
@@ -322,6 +387,12 @@ public class PC4WScript : MonoBehaviour
         if (holdCombo)
         {
             currentCombo++;
+            if (currentCombo > maxCombo)
+            {
+                maxCombo = currentCombo;
+                if (activeZen) fullClearsText.text = maxCombo.ToString();
+            }
+            
             Audio.PlaySoundAtTransform(comboSounds[
                 (currentCombo >= comboSounds.Count ? comboSounds.Count : currentCombo)-1].name, transform);
         }
@@ -334,14 +405,16 @@ public class PC4WScript : MonoBehaviour
         if (cup[0].All(x => x == ' '))
         {
             fullClears++;
-            fullClearsText.text = fullClears.ToString();
+            if (!activeZen) fullClearsText.text = fullClears.ToString();
             GetComponent<KMBombModule>().HandlePass();
+            ModuleSolved = true;
         }
         spawn();
     }
 
     IEnumerator Move()
     {
+        if (TwitchPlaysActive) yield break;
         while (gameIsGoing)
         {
             totalTime += Time.deltaTime;
@@ -371,6 +444,7 @@ public class PC4WScript : MonoBehaviour
 
     IEnumerator gravity()
     {
+        if (TwitchPlaysActive) yield break;
         float timer = 0f, timer2 = 0f, currentGravity = baseGravity;
         
         while (gameIsGoing)
@@ -403,6 +477,25 @@ public class PC4WScript : MonoBehaviour
                 timer2 = 0f;
             }
             yield return new WaitForEndOfFrame();
+        }
+    }
+
+    void pressDownTwitch()
+    {
+        if (checkIfFits(currentPiece, currentPosition + Vector2Int.down, currentRotation))
+        {
+            currentPosition += Vector2Int.down;
+            drawCup();
+        }
+        else drop();
+    }
+    
+    void moveTwitch(int dirTwitch)
+    {
+        if (checkIfFits(currentPiece, currentPosition + new Vector2Int(dirTwitch, 0), currentRotation))
+        {
+            currentPosition += new Vector2Int(dirTwitch, 0);
+            drawCup();
         }
     }
     
@@ -571,7 +664,51 @@ public class PC4WScript : MonoBehaviour
         }
     };
     
-    
+#pragma warning disable 414
+    private readonly string TwitchHelpMessage = @"Use !{0} A/D to move left and right, !{0} S to lower the piece by 1 unit, !{0} Q/E to rotate CCW/CW, !{0} W to rotate upside-down, !{0} 3 to harddrop, !{0} 1 to hold. Use !{0} queue to show next 25 pieces, !{0} game to start a new game.";
+#pragma warning restore 414
+	
+    public IEnumerator ProcessTwitchCommand(string Command)
+    {
+        yield return null;
+        Command = Command.ToUpper();
+        if (Command == "QUEUE")
+        {
+            yield return "sendtochat Your queue is: " + queue.Substring(0, 25);
+            yield break;
+        }
+        if (Command == "GAME")
+        {
+            newGame();
+            yield break;
+        }
+        if (Regex.IsMatch(Command, "^[ADSQEW31 ]+$"))
+        {
+            foreach (char c in Command)
+            {
+                switch (c)
+                {
+                    case 'A': moveTwitch(-1); break;
+                    case 'D': moveTwitch(1); break;
+                    case 'S': pressDownTwitch(); break;
+                    case 'Q': Rotate(1); break;
+                    case 'E': Rotate(3); break;
+                    case 'W': Rotate(2); break;
+                    case '3': drop(); break;
+                    case '1': Hold(); break;
+                }
+            }
+            yield break;
+        }
+        yield return "sendtochaterror Invalid command.";
+    }
+
+    public IEnumerator TwitchHandleForcedSolve()
+    {
+        yield return null;
+        ModuleSolved = true;
+        GetComponent<KMBombModule>().HandlePass();
+    }
 }
 
 namespace CustomExtensions { public static class Extensions

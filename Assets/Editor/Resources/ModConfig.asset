@@ -20,7 +20,7 @@ MonoBehaviour:
     \u0442\u0435\u0441\u0442\u0438\u0440\u043E\u0432\u0430\u043D\u0438\u0435 :]\n\u041D\u0430\u0436\u043C\u0438\u0442\u0435
     F4, \u0447\u0442\u043E\u0431\u044B \u043D\u0430\u0447\u0430\u0442\u044C \u0438\u0433\u0440\u0443,
     \u0438 \u0432\u0435\u0441\u0435\u043B\u0438\u0442\u0435\u0441\u044C! ^^"
-  version: 
+  version: 1.1
   outputFolder: build
   debugBuild: 1
   previewImage: {fileID: 2800000, guid: feb7de3c9db8f0742a942f42df56c0fc, type: 3}
